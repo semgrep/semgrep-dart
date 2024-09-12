@@ -12,13 +12,13 @@
 *)
 val string :
   ?src_file:string -> string ->
-  CST.program Tree_sitter_run.Parsing_result.t
+  (CST.program, CST.extra) Tree_sitter_run.Parsing_result.t
 
 (** Parse a dart program from a file into a typed OCaml CST.
     See the [string] function above for details. *)
 val file :
   string ->
-  CST.program Tree_sitter_run.Parsing_result.t
+  (CST.program, CST.extra) Tree_sitter_run.Parsing_result.t
 
 (** Whether to print debugging information. Default: false. *)
 val debug : bool ref
@@ -36,4 +36,4 @@ val parse_source_file : string -> Tree_sitter_run.Tree_sitter_parsing.t
 (** Parse a tree-sitter CST into an OCaml typed CST. *)
 val parse_input_tree :
   Tree_sitter_run.Tree_sitter_parsing.t ->
-  CST.program Tree_sitter_run.Parsing_result.t
+  (CST.program, CST.extra) Tree_sitter_run.Parsing_result.t

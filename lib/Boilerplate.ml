@@ -3940,7 +3940,54 @@ let map_program (env : env) (x : CST.program) =
     )
   )
 
+let map_comment (env : env) (x : CST.comment) =
+  (match x with
+  | `Blk_comm tok -> R.Case ("Blk_comm",
+      (* block_comment *) token env tok
+    )
+  | `SLASHSLASH_pat_d6c261f (v1, v2) -> R.Case ("SLASHSLASH_pat_d6c261f",
+      let v1 = (* "//" *) token env v1 in
+      let v2 = map_pat_d6c261f env v2 in
+      R.Tuple [v1; v2]
+    )
+  | `SLASHSTAR_pat_05bf793_SLASH (v1, v2, v3) -> R.Case ("SLASHSTAR_pat_05bf793_SLASH",
+      let v1 = (* "/*" *) token env v1 in
+      let v2 = map_pat_05bf793 env v2 in
+      let v3 = (* "/" *) token env v3 in
+      R.Tuple [v1; v2; v3]
+    )
+  )
+
+let map_documentation_comment (env : env) (x : CST.documentation_comment) =
+  (match x with
+  | `Docu_blk_comm tok -> R.Case ("Docu_blk_comm",
+      (* documentation_block_comment *) token env tok
+    )
+  | `SLASHSLASHSLASH_pat_4fd4a56 (v1, v2) -> R.Case ("SLASHSLASHSLASH_pat_4fd4a56",
+      let v1 = (* "///" *) token env v1 in
+      let v2 = map_pat_4fd4a56 env v2 in
+      R.Tuple [v1; v2]
+    )
+  )
+
 let dump_tree root =
   map_program () root
-  |> Tree_sitter_run.Raw_tree.to_string
-  |> print_string
+  |> Tree_sitter_run.Raw_tree.to_channel stdout
+
+let map_extra (env : env) (x : CST.extra) =
+  match x with
+  | Comment (_loc, x) -> ("comment", "comment", map_comment env x)
+  | Documentation_comment (_loc, x) -> ("documentation_comment", "documentation_comment", map_documentation_comment env x)
+
+let dump_extras (extras : CST.extras) =
+  List.iter (fun extra ->
+    let ts_rule_name, ocaml_type_name, raw_tree = map_extra () extra in
+    let details =
+      if ocaml_type_name <> ts_rule_name then
+        Printf.sprintf " (OCaml type '%s')" ocaml_type_name
+      else
+        ""
+    in
+    Printf.printf "%s%s:\n" ts_rule_name details;
+    Tree_sitter_run.Raw_tree.to_channel stdout raw_tree
+  ) extras

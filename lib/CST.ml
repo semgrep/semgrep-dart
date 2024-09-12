@@ -2140,3 +2140,10 @@ type declaration (* inlined *) = [
   | `Class_defi of class_definition
   | `Enum_decl of enum_declaration
 ]
+
+type extra = 
+    Comment of Loc.t * comment
+  | Documentation_comment of Loc.t * documentation_comment
+
+
+type extras = extra list
