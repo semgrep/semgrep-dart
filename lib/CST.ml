@@ -2141,9 +2141,9 @@ type declaration (* inlined *) = [
   | `Enum_decl of enum_declaration
 ]
 
-type extra = 
-    Comment of Loc.t * comment
-  | Documentation_comment of Loc.t * documentation_comment
-
+type extra = [
+    `Comment of Loc.t * comment
+  | `Documentation_comment of Loc.t * documentation_comment
+]
 
 type extras = extra list

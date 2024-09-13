@@ -9913,11 +9913,11 @@ let translate_extra src (node : Tree_sitter_output_t.node) : CST.extra option =
   | "comment" ->
       (match translate_tree src node trans_comment with
       | None -> None
-      | Some x -> Some (Comment (Run.get_loc node, x)))
+      | Some x -> Some (`Comment (Run.get_loc node, x)))
   | "documentation_comment" ->
       (match translate_tree src node trans_documentation_comment with
       | None -> None
-      | Some x -> Some (Documentation_comment (Run.get_loc node, x)))
+      | Some x -> Some (`Documentation_comment (Run.get_loc node, x)))
   | _ -> None
 
 let translate_root src root_node =
