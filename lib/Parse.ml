@@ -20,12 +20,13 @@ type mt = Run.matcher_token
 external create_parser :
   unit -> Tree_sitter_API.ts_parser = "octs_create_parser_dart"
 
-let ts_parser = create_parser ()
 
 let parse_source_string ?src_file contents =
+  let ts_parser = create_parser () in
   Tree_sitter_parsing.parse_source_string ?src_file ts_parser contents
 
 let parse_source_file src_file =
+  let ts_parser = create_parser () in
   Tree_sitter_parsing.parse_source_file ts_parser src_file
 
 let extras = [
