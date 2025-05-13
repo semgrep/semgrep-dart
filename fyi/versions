@@ -1,30 +1,30 @@
 File: semgrep-grammars/src/tree-sitter-dart/LICENSE
 Git repo name: tree-sitter-dart
-Latest commit in repo: 5549697ffeef681d57ba1ce72bed97961221f284
+Latest commit in repo: 80e23c07b64494f7e21090bb3450223ef0b192f4
 Last change in file:
-  commit 5549697ffeef681d57ba1ce72bed97961221f284
-  Author: Martin Jambon <martin@mjambon.com>
-  Date:   Mon Jun 13 15:31:25 2022 -0700
+  commit 672d0b65c9bfa11a074b2e21f818c69cd730f1cc
+  Author: Tim Whiting <tim@whitings.org>
+  Date:   Wed May 3 20:51:19 2023 -0600
   
-      Merge branch 'mj-inline-rule'
+      add class modifiers support
 ---
 File: semgrep-grammars/src/tree-sitter-dart/grammar.js
 Git repo name: tree-sitter-dart
-Latest commit in repo: 5549697ffeef681d57ba1ce72bed97961221f284
+Latest commit in repo: 80e23c07b64494f7e21090bb3450223ef0b192f4
 Last change in file:
-  commit 5549697ffeef681d57ba1ce72bed97961221f284
-  Author: Martin Jambon <martin@mjambon.com>
-  Date:   Mon Jun 13 15:31:25 2022 -0700
+  commit 597f6d41bed4069267697ea6956926a62111e70a
+  Author: Christian Clason <c.clason@uni-graz.at>
+  Date:   Sat Apr 27 19:46:54 2024 +0200
   
-      Merge branch 'mj-inline-rule'
+      fix(grammar): adapt to upstream regex change
 ---
 File: semgrep-grammars/src/semgrep-dart/grammar.js
 Git repo name: ocaml-tree-sitter-semgrep
-Latest commit in repo: 091f5438fc0c15b80217f00e5b94ec0e55517383
+Latest commit in repo: bc3417a1f601604ccc5c89a3db452726639f821c
 Last change in file:
-  commit 40fc011bc6e5f0739e7e060e2ed92b5a693c7458
+  commit 0fb256eaad93e218bae5427049eb753d4f89f220
   Author: brandonspark <wu.brandonj@gmail.com>
-  Date:   Wed Sep 13 12:00:05 2023 -0700
+  Date:   Wed May 7 14:21:07 2025 -0700
   
-      expression entry point and named ellipses
+      change dart to real tree-sitter-dart
 ---
