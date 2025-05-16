@@ -3772,102 +3772,105 @@ let children_regexps : (string * Run.exp option) list = [
   "top_level_definition",
   Some (
     Alt [|
-      Token (Name "class_definition");
-      Token (Name "mixin_declaration");
-      Token (Name "extension_declaration");
-      Token (Name "enum_declaration");
-      Token (Name "type_alias");
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Opt (
-          Token (Name "external_builtin");
-        );
-        Token (Name "function_signature");
-        Token (Name "semicolon");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Opt (
-          Token (Name "external_builtin");
-        );
-        Token (Name "getter_signature");
-        Token (Name "semicolon");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Opt (
-          Token (Name "external_builtin");
-        );
-        Token (Name "setter_signature");
-        Token (Name "semicolon");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Token (Name "getter_signature");
-        Token (Name "function_body");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Token (Name "setter_signature");
-        Token (Name "function_body");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Token (Name "function_signature");
-        Token (Name "function_body");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Alt [|
-          Token (Name "final_builtin");
-          Token (Name "const_builtin");
-        |];
-        Opt (
-          Token (Name "type");
-        );
-        Token (Name "static_final_declaration_list");
-        Token (Name "semicolon");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Token (Name "late_builtin");
-        Token (Name "final_builtin");
-        Opt (
-          Token (Name "type");
-        );
-        Token (Name "initialized_identifier_list");
-        Token (Name "semicolon");
-      ];
-      Seq [
-        Opt (
-          Token (Name "metadata");
-        );
-        Opt (
+      Alt [|
+        Token (Name "class_definition");
+        Token (Name "mixin_declaration");
+        Token (Name "extension_declaration");
+        Token (Name "enum_declaration");
+        Token (Name "type_alias");
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Opt (
+            Token (Name "external_builtin");
+          );
+          Token (Name "function_signature");
+          Token (Name "semicolon");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Opt (
+            Token (Name "external_builtin");
+          );
+          Token (Name "getter_signature");
+          Token (Name "semicolon");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Opt (
+            Token (Name "external_builtin");
+          );
+          Token (Name "setter_signature");
+          Token (Name "semicolon");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Token (Name "getter_signature");
+          Token (Name "function_body");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Token (Name "setter_signature");
+          Token (Name "function_body");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Token (Name "function_signature");
+          Token (Name "function_body");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Alt [|
+            Token (Name "final_builtin");
+            Token (Name "const_builtin");
+          |];
+          Opt (
+            Token (Name "type");
+          );
+          Token (Name "static_final_declaration_list");
+          Token (Name "semicolon");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
           Token (Name "late_builtin");
-        );
-        Alt [|
-          Token (Name "type");
-          Token (Name "inferred_type");
-        |];
-        Token (Name "initialized_identifier_list");
-        Token (Name "semicolon");
-      ];
+          Token (Name "final_builtin");
+          Opt (
+            Token (Name "type");
+          );
+          Token (Name "initialized_identifier_list");
+          Token (Name "semicolon");
+        ];
+        Seq [
+          Opt (
+            Token (Name "metadata");
+          );
+          Opt (
+            Token (Name "late_builtin");
+          );
+          Alt [|
+            Token (Name "type");
+            Token (Name "inferred_type");
+          |];
+          Token (Name "initialized_identifier_list");
+          Token (Name "semicolon");
+        ];
+      |];
+      Token (Name "semgrep_ellipsis");
     |];
   );
   "import_or_export",
@@ -11922,209 +11925,219 @@ let trans_top_level_definition ((kind, body) : mt) : CST.top_level_definition =
   | Children v ->
       (match v with
       | Alt (0, v) ->
-          `Class_defi (
-            trans_class_definition (Run.matcher_token v)
+          `Choice_class_defi (
+            (match v with
+            | Alt (0, v) ->
+                `Class_defi (
+                  trans_class_definition (Run.matcher_token v)
+                )
+            | Alt (1, v) ->
+                `Mixin_decl (
+                  trans_mixin_declaration (Run.matcher_token v)
+                )
+            | Alt (2, v) ->
+                `Exte_decl (
+                  trans_extension_declaration (Run.matcher_token v)
+                )
+            | Alt (3, v) ->
+                `Enum_decl (
+                  trans_enum_declaration (Run.matcher_token v)
+                )
+            | Alt (4, v) ->
+                `Type_alias (
+                  trans_type_alias (Run.matcher_token v)
+                )
+            | Alt (5, v) ->
+                `Opt_meta_opt_exte_buil_func_sign_semi (
+                  (match v with
+                  | Seq [v0; v1; v2; v3] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        Run.opt
+                          (fun v -> trans_external_builtin (Run.matcher_token v))
+                          v1
+                        ,
+                        trans_function_signature (Run.matcher_token v2),
+                        trans_semicolon (Run.matcher_token v3)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (6, v) ->
+                `Opt_meta_opt_exte_buil_getter_sign_semi (
+                  (match v with
+                  | Seq [v0; v1; v2; v3] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        Run.opt
+                          (fun v -> trans_external_builtin (Run.matcher_token v))
+                          v1
+                        ,
+                        trans_getter_signature (Run.matcher_token v2),
+                        trans_semicolon (Run.matcher_token v3)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (7, v) ->
+                `Opt_meta_opt_exte_buil_setter_sign_semi (
+                  (match v with
+                  | Seq [v0; v1; v2; v3] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        Run.opt
+                          (fun v -> trans_external_builtin (Run.matcher_token v))
+                          v1
+                        ,
+                        trans_setter_signature (Run.matcher_token v2),
+                        trans_semicolon (Run.matcher_token v3)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (8, v) ->
+                `Opt_meta_getter_sign_func_body (
+                  (match v with
+                  | Seq [v0; v1; v2] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        trans_getter_signature (Run.matcher_token v1),
+                        trans_function_body (Run.matcher_token v2)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (9, v) ->
+                `Opt_meta_setter_sign_func_body (
+                  (match v with
+                  | Seq [v0; v1; v2] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        trans_setter_signature (Run.matcher_token v1),
+                        trans_function_body (Run.matcher_token v2)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (10, v) ->
+                `Opt_meta_func_sign_func_body (
+                  (match v with
+                  | Seq [v0; v1; v2] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        trans_function_signature (Run.matcher_token v1),
+                        trans_function_body (Run.matcher_token v2)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (11, v) ->
+                `Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi (
+                  (match v with
+                  | Seq [v0; v1; v2; v3; v4] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        (match v1 with
+                        | Alt (0, v) ->
+                            `Final_buil (
+                              trans_final_builtin (Run.matcher_token v)
+                            )
+                        | Alt (1, v) ->
+                            `Const_buil (
+                              trans_const_builtin (Run.matcher_token v)
+                            )
+                        | _ -> assert false
+                        )
+                        ,
+                        Run.opt
+                          (fun v -> trans_type_ (Run.matcher_token v))
+                          v2
+                        ,
+                        trans_static_final_declaration_list (Run.matcher_token v3),
+                        trans_semicolon (Run.matcher_token v4)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (12, v) ->
+                `Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi (
+                  (match v with
+                  | Seq [v0; v1; v2; v3; v4; v5] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        trans_late_builtin (Run.matcher_token v1),
+                        trans_final_builtin (Run.matcher_token v2),
+                        Run.opt
+                          (fun v -> trans_type_ (Run.matcher_token v))
+                          v3
+                        ,
+                        trans_initialized_identifier_list (Run.matcher_token v4),
+                        trans_semicolon (Run.matcher_token v5)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | Alt (13, v) ->
+                `Opt_meta_opt_late_buil_choice_type_init_id_list_semi (
+                  (match v with
+                  | Seq [v0; v1; v2; v3; v4] ->
+                      (
+                        Run.opt
+                          (fun v -> trans_metadata (Run.matcher_token v))
+                          v0
+                        ,
+                        Run.opt
+                          (fun v -> trans_late_builtin (Run.matcher_token v))
+                          v1
+                        ,
+                        (match v2 with
+                        | Alt (0, v) ->
+                            `Type (
+                              trans_type_ (Run.matcher_token v)
+                            )
+                        | Alt (1, v) ->
+                            `Infe_type (
+                              trans_inferred_type (Run.matcher_token v)
+                            )
+                        | _ -> assert false
+                        )
+                        ,
+                        trans_initialized_identifier_list (Run.matcher_token v3),
+                        trans_semicolon (Run.matcher_token v4)
+                      )
+                  | _ -> assert false
+                  )
+                )
+            | _ -> assert false
+            )
           )
       | Alt (1, v) ->
-          `Mixin_decl (
-            trans_mixin_declaration (Run.matcher_token v)
-          )
-      | Alt (2, v) ->
-          `Exte_decl (
-            trans_extension_declaration (Run.matcher_token v)
-          )
-      | Alt (3, v) ->
-          `Enum_decl (
-            trans_enum_declaration (Run.matcher_token v)
-          )
-      | Alt (4, v) ->
-          `Type_alias (
-            trans_type_alias (Run.matcher_token v)
-          )
-      | Alt (5, v) ->
-          `Opt_meta_opt_exte_buil_func_sign_semi (
-            (match v with
-            | Seq [v0; v1; v2; v3] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  Run.opt
-                    (fun v -> trans_external_builtin (Run.matcher_token v))
-                    v1
-                  ,
-                  trans_function_signature (Run.matcher_token v2),
-                  trans_semicolon (Run.matcher_token v3)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (6, v) ->
-          `Opt_meta_opt_exte_buil_getter_sign_semi (
-            (match v with
-            | Seq [v0; v1; v2; v3] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  Run.opt
-                    (fun v -> trans_external_builtin (Run.matcher_token v))
-                    v1
-                  ,
-                  trans_getter_signature (Run.matcher_token v2),
-                  trans_semicolon (Run.matcher_token v3)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (7, v) ->
-          `Opt_meta_opt_exte_buil_setter_sign_semi (
-            (match v with
-            | Seq [v0; v1; v2; v3] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  Run.opt
-                    (fun v -> trans_external_builtin (Run.matcher_token v))
-                    v1
-                  ,
-                  trans_setter_signature (Run.matcher_token v2),
-                  trans_semicolon (Run.matcher_token v3)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (8, v) ->
-          `Opt_meta_getter_sign_func_body (
-            (match v with
-            | Seq [v0; v1; v2] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  trans_getter_signature (Run.matcher_token v1),
-                  trans_function_body (Run.matcher_token v2)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (9, v) ->
-          `Opt_meta_setter_sign_func_body (
-            (match v with
-            | Seq [v0; v1; v2] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  trans_setter_signature (Run.matcher_token v1),
-                  trans_function_body (Run.matcher_token v2)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (10, v) ->
-          `Opt_meta_func_sign_func_body (
-            (match v with
-            | Seq [v0; v1; v2] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  trans_function_signature (Run.matcher_token v1),
-                  trans_function_body (Run.matcher_token v2)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (11, v) ->
-          `Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi (
-            (match v with
-            | Seq [v0; v1; v2; v3; v4] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  (match v1 with
-                  | Alt (0, v) ->
-                      `Final_buil (
-                        trans_final_builtin (Run.matcher_token v)
-                      )
-                  | Alt (1, v) ->
-                      `Const_buil (
-                        trans_const_builtin (Run.matcher_token v)
-                      )
-                  | _ -> assert false
-                  )
-                  ,
-                  Run.opt
-                    (fun v -> trans_type_ (Run.matcher_token v))
-                    v2
-                  ,
-                  trans_static_final_declaration_list (Run.matcher_token v3),
-                  trans_semicolon (Run.matcher_token v4)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (12, v) ->
-          `Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi (
-            (match v with
-            | Seq [v0; v1; v2; v3; v4; v5] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  trans_late_builtin (Run.matcher_token v1),
-                  trans_final_builtin (Run.matcher_token v2),
-                  Run.opt
-                    (fun v -> trans_type_ (Run.matcher_token v))
-                    v3
-                  ,
-                  trans_initialized_identifier_list (Run.matcher_token v4),
-                  trans_semicolon (Run.matcher_token v5)
-                )
-            | _ -> assert false
-            )
-          )
-      | Alt (13, v) ->
-          `Opt_meta_opt_late_buil_choice_type_init_id_list_semi (
-            (match v with
-            | Seq [v0; v1; v2; v3; v4] ->
-                (
-                  Run.opt
-                    (fun v -> trans_metadata (Run.matcher_token v))
-                    v0
-                  ,
-                  Run.opt
-                    (fun v -> trans_late_builtin (Run.matcher_token v))
-                    v1
-                  ,
-                  (match v2 with
-                  | Alt (0, v) ->
-                      `Type (
-                        trans_type_ (Run.matcher_token v)
-                      )
-                  | Alt (1, v) ->
-                      `Infe_type (
-                        trans_inferred_type (Run.matcher_token v)
-                      )
-                  | _ -> assert false
-                  )
-                  ,
-                  trans_initialized_identifier_list (Run.matcher_token v3),
-                  trans_semicolon (Run.matcher_token v4)
-                )
-            | _ -> assert false
-            )
+          `Semg_ellips (
+            trans_semgrep_ellipsis (Run.matcher_token v)
           )
       | _ -> assert false
       )

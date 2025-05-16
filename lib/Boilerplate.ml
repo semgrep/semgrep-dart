@@ -4651,6 +4651,49 @@ let map_enum_declaration (env : env) ((v1, v2, v3, v4, v5, v6, v7) : CST.enum_de
   let v7 = map_enum_body env v7 in
   R.Tuple [v1; v2; v3; v4; v5; v6; v7]
 
+let map_mixin_declaration (env : env) ((v1, v2, v3, v4, v5, v6, v7, v8) : CST.mixin_declaration) =
+  let v1 =
+    (match v1 with
+    | Some x -> R.Option (Some (
+        map_metadata env x
+      ))
+    | None -> R.Option None)
+  in
+  let v2 =
+    (match v2 with
+    | Some tok -> R.Option (Some (
+        (* "base" *) token env tok
+      ))
+    | None -> R.Option None)
+  in
+  let v3 = (* "mixin" *) token env v3 in
+  let v4 = (* pattern [a-zA-Z_$][\w$]* *) token env v4 in
+  let v5 =
+    (match v5 with
+    | Some x -> R.Option (Some (
+        map_type_parameters env x
+      ))
+    | None -> R.Option None)
+  in
+  let v6 =
+    (match v6 with
+    | Some (v1, v2) -> R.Option (Some (
+        let v1 = (* "on" *) token env v1 in
+        let v2 = map_type_not_void_list env v2 in
+        R.Tuple [v1; v2]
+      ))
+    | None -> R.Option None)
+  in
+  let v7 =
+    (match v7 with
+    | Some x -> R.Option (Some (
+        map_interfaces env x
+      ))
+    | None -> R.Option None)
+  in
+  let v8 = map_class_body env v8 in
+  R.Tuple [v1; v2; v3; v4; v5; v6; v7; v8]
+
 let map_class_definition (env : env) (x : CST.class_definition) =
   (match x with
   | `Opt_meta_choice_class_modifs_id_opt_type_params_opt_supe_opt_inters_class_body (v1, v2, v3, v4, v5, v6, v7) -> R.Case ("Opt_meta_choice_class_modifs_id_opt_type_params_opt_supe_opt_inters_class_body",
@@ -4712,214 +4755,181 @@ let map_class_definition (env : env) (x : CST.class_definition) =
 
 let map_top_level_definition (env : env) (x : CST.top_level_definition) =
   (match x with
-  | `Class_defi x -> R.Case ("Class_defi",
-      map_class_definition env x
+  | `Choice_class_defi x -> R.Case ("Choice_class_defi",
+      (match x with
+      | `Class_defi x -> R.Case ("Class_defi",
+          map_class_definition env x
+        )
+      | `Mixin_decl x -> R.Case ("Mixin_decl",
+          map_mixin_declaration env x
+        )
+      | `Exte_decl x -> R.Case ("Exte_decl",
+          map_extension_declaration env x
+        )
+      | `Enum_decl x -> R.Case ("Enum_decl",
+          map_enum_declaration env x
+        )
+      | `Type_alias x -> R.Case ("Type_alias",
+          map_type_alias env x
+        )
+      | `Opt_meta_opt_exte_buil_func_sign_semi (v1, v2, v3, v4) -> R.Case ("Opt_meta_opt_exte_buil_func_sign_semi",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 =
+            (match v2 with
+            | Some tok -> R.Option (Some (
+                (* "external" *) token env tok
+              ))
+            | None -> R.Option None)
+          in
+          let v3 = map_function_signature env v3 in
+          let v4 = (* semicolon *) token env v4 in
+          R.Tuple [v1; v2; v3; v4]
+        )
+      | `Opt_meta_opt_exte_buil_getter_sign_semi (v1, v2, v3, v4) -> R.Case ("Opt_meta_opt_exte_buil_getter_sign_semi",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 =
+            (match v2 with
+            | Some tok -> R.Option (Some (
+                (* "external" *) token env tok
+              ))
+            | None -> R.Option None)
+          in
+          let v3 = map_getter_signature env v3 in
+          let v4 = (* semicolon *) token env v4 in
+          R.Tuple [v1; v2; v3; v4]
+        )
+      | `Opt_meta_opt_exte_buil_setter_sign_semi (v1, v2, v3, v4) -> R.Case ("Opt_meta_opt_exte_buil_setter_sign_semi",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 =
+            (match v2 with
+            | Some tok -> R.Option (Some (
+                (* "external" *) token env tok
+              ))
+            | None -> R.Option None)
+          in
+          let v3 = map_setter_signature env v3 in
+          let v4 = (* semicolon *) token env v4 in
+          R.Tuple [v1; v2; v3; v4]
+        )
+      | `Opt_meta_getter_sign_func_body (v1, v2, v3) -> R.Case ("Opt_meta_getter_sign_func_body",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 = map_getter_signature env v2 in
+          let v3 = map_function_body env v3 in
+          R.Tuple [v1; v2; v3]
+        )
+      | `Opt_meta_setter_sign_func_body (v1, v2, v3) -> R.Case ("Opt_meta_setter_sign_func_body",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 = map_setter_signature env v2 in
+          let v3 = map_function_body env v3 in
+          R.Tuple [v1; v2; v3]
+        )
+      | `Opt_meta_func_sign_func_body (v1, v2, v3) -> R.Case ("Opt_meta_func_sign_func_body",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 = map_function_signature env v2 in
+          let v3 = map_function_body env v3 in
+          R.Tuple [v1; v2; v3]
+        )
+      | `Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi (v1, v2, v3, v4, v5) -> R.Case ("Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 = map_final_or_const env v2 in
+          let v3 =
+            (match v3 with
+            | Some x -> R.Option (Some (
+                map_type_ env x
+              ))
+            | None -> R.Option None)
+          in
+          let v4 = map_static_final_declaration_list env v4 in
+          let v5 = (* semicolon *) token env v5 in
+          R.Tuple [v1; v2; v3; v4; v5]
+        )
+      | `Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi (v1, v2, v3, v4, v5, v6) -> R.Case ("Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 = (* "late" *) token env v2 in
+          let v3 = (* final_builtin *) token env v3 in
+          let v4 =
+            (match v4 with
+            | Some x -> R.Option (Some (
+                map_type_ env x
+              ))
+            | None -> R.Option None)
+          in
+          let v5 = map_initialized_identifier_list env v5 in
+          let v6 = (* semicolon *) token env v6 in
+          R.Tuple [v1; v2; v3; v4; v5; v6]
+        )
+      | `Opt_meta_opt_late_buil_choice_type_init_id_list_semi (v1, v2, v3, v4, v5) -> R.Case ("Opt_meta_opt_late_buil_choice_type_init_id_list_semi",
+          let v1 =
+            (match v1 with
+            | Some x -> R.Option (Some (
+                map_metadata env x
+              ))
+            | None -> R.Option None)
+          in
+          let v2 =
+            (match v2 with
+            | Some tok -> R.Option (Some (
+                (* "late" *) token env tok
+              ))
+            | None -> R.Option None)
+          in
+          let v3 = map_anon_choice_type_be0da33 env v3 in
+          let v4 = map_initialized_identifier_list env v4 in
+          let v5 = (* semicolon *) token env v5 in
+          R.Tuple [v1; v2; v3; v4; v5]
+        )
+      )
     )
-  | `Mixin_decl (v1, v2, v3, v4, v5, v6, v7, v8) -> R.Case ("Mixin_decl",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 =
-        (match v2 with
-        | Some tok -> R.Option (Some (
-            (* "base" *) token env tok
-          ))
-        | None -> R.Option None)
-      in
-      let v3 = (* "mixin" *) token env v3 in
-      let v4 = (* pattern [a-zA-Z_$][\w$]* *) token env v4 in
-      let v5 =
-        (match v5 with
-        | Some x -> R.Option (Some (
-            map_type_parameters env x
-          ))
-        | None -> R.Option None)
-      in
-      let v6 =
-        (match v6 with
-        | Some (v1, v2) -> R.Option (Some (
-            let v1 = (* "on" *) token env v1 in
-            let v2 = map_type_not_void_list env v2 in
-            R.Tuple [v1; v2]
-          ))
-        | None -> R.Option None)
-      in
-      let v7 =
-        (match v7 with
-        | Some x -> R.Option (Some (
-            map_interfaces env x
-          ))
-        | None -> R.Option None)
-      in
-      let v8 = map_class_body env v8 in
-      R.Tuple [v1; v2; v3; v4; v5; v6; v7; v8]
-    )
-  | `Exte_decl x -> R.Case ("Exte_decl",
-      map_extension_declaration env x
-    )
-  | `Enum_decl x -> R.Case ("Enum_decl",
-      map_enum_declaration env x
-    )
-  | `Type_alias x -> R.Case ("Type_alias",
-      map_type_alias env x
-    )
-  | `Opt_meta_opt_exte_buil_func_sign_semi (v1, v2, v3, v4) -> R.Case ("Opt_meta_opt_exte_buil_func_sign_semi",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 =
-        (match v2 with
-        | Some tok -> R.Option (Some (
-            (* "external" *) token env tok
-          ))
-        | None -> R.Option None)
-      in
-      let v3 = map_function_signature env v3 in
-      let v4 = (* semicolon *) token env v4 in
-      R.Tuple [v1; v2; v3; v4]
-    )
-  | `Opt_meta_opt_exte_buil_getter_sign_semi (v1, v2, v3, v4) -> R.Case ("Opt_meta_opt_exte_buil_getter_sign_semi",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 =
-        (match v2 with
-        | Some tok -> R.Option (Some (
-            (* "external" *) token env tok
-          ))
-        | None -> R.Option None)
-      in
-      let v3 = map_getter_signature env v3 in
-      let v4 = (* semicolon *) token env v4 in
-      R.Tuple [v1; v2; v3; v4]
-    )
-  | `Opt_meta_opt_exte_buil_setter_sign_semi (v1, v2, v3, v4) -> R.Case ("Opt_meta_opt_exte_buil_setter_sign_semi",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 =
-        (match v2 with
-        | Some tok -> R.Option (Some (
-            (* "external" *) token env tok
-          ))
-        | None -> R.Option None)
-      in
-      let v3 = map_setter_signature env v3 in
-      let v4 = (* semicolon *) token env v4 in
-      R.Tuple [v1; v2; v3; v4]
-    )
-  | `Opt_meta_getter_sign_func_body (v1, v2, v3) -> R.Case ("Opt_meta_getter_sign_func_body",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 = map_getter_signature env v2 in
-      let v3 = map_function_body env v3 in
-      R.Tuple [v1; v2; v3]
-    )
-  | `Opt_meta_setter_sign_func_body (v1, v2, v3) -> R.Case ("Opt_meta_setter_sign_func_body",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 = map_setter_signature env v2 in
-      let v3 = map_function_body env v3 in
-      R.Tuple [v1; v2; v3]
-    )
-  | `Opt_meta_func_sign_func_body (v1, v2, v3) -> R.Case ("Opt_meta_func_sign_func_body",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 = map_function_signature env v2 in
-      let v3 = map_function_body env v3 in
-      R.Tuple [v1; v2; v3]
-    )
-  | `Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi (v1, v2, v3, v4, v5) -> R.Case ("Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 = map_final_or_const env v2 in
-      let v3 =
-        (match v3 with
-        | Some x -> R.Option (Some (
-            map_type_ env x
-          ))
-        | None -> R.Option None)
-      in
-      let v4 = map_static_final_declaration_list env v4 in
-      let v5 = (* semicolon *) token env v5 in
-      R.Tuple [v1; v2; v3; v4; v5]
-    )
-  | `Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi (v1, v2, v3, v4, v5, v6) -> R.Case ("Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 = (* "late" *) token env v2 in
-      let v3 = (* final_builtin *) token env v3 in
-      let v4 =
-        (match v4 with
-        | Some x -> R.Option (Some (
-            map_type_ env x
-          ))
-        | None -> R.Option None)
-      in
-      let v5 = map_initialized_identifier_list env v5 in
-      let v6 = (* semicolon *) token env v6 in
-      R.Tuple [v1; v2; v3; v4; v5; v6]
-    )
-  | `Opt_meta_opt_late_buil_choice_type_init_id_list_semi (v1, v2, v3, v4, v5) -> R.Case ("Opt_meta_opt_late_buil_choice_type_init_id_list_semi",
-      let v1 =
-        (match v1 with
-        | Some x -> R.Option (Some (
-            map_metadata env x
-          ))
-        | None -> R.Option None)
-      in
-      let v2 =
-        (match v2 with
-        | Some tok -> R.Option (Some (
-            (* "late" *) token env tok
-          ))
-        | None -> R.Option None)
-      in
-      let v3 = map_anon_choice_type_be0da33 env v3 in
-      let v4 = map_initialized_identifier_list env v4 in
-      let v5 = (* semicolon *) token env v5 in
-      R.Tuple [v1; v2; v3; v4; v5]
+  | `Semg_ellips tok -> R.Case ("Semg_ellips",
+      (* "..." *) token env tok
     )
   )
 

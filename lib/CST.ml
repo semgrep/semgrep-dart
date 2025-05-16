@@ -1899,6 +1899,17 @@ type enum_declaration = (
   * enum_body
 )
 
+type mixin_declaration = (
+    metadata option
+  * Token.t (* "base" *) option
+  * Token.t (* "mixin" *)
+  * identifier (*tok*)
+  * type_parameters option
+  * (Token.t (* "on" *) * type_not_void_list) option
+  * interfaces option
+  * class_body
+)
+
 type class_definition = [
     `Opt_meta_choice_class_modifs_id_opt_type_params_opt_supe_opt_inters_class_body of (
         metadata option
@@ -1920,75 +1931,69 @@ type class_definition = [
 ]
 
 type top_level_definition = [
-    `Class_defi of class_definition
-  | `Mixin_decl of (
-        metadata option
-      * Token.t (* "base" *) option
-      * Token.t (* "mixin" *)
-      * identifier (*tok*)
-      * type_parameters option
-      * (Token.t (* "on" *) * type_not_void_list) option
-      * interfaces option
-      * class_body
-    )
-  | `Exte_decl of extension_declaration
-  | `Enum_decl of enum_declaration
-  | `Type_alias of type_alias
-  | `Opt_meta_opt_exte_buil_func_sign_semi of (
-        metadata option
-      * Token.t (* "external" *) option
-      * function_signature
-      * semicolon (*tok*)
-    )
-  | `Opt_meta_opt_exte_buil_getter_sign_semi of (
-        metadata option
-      * Token.t (* "external" *) option
-      * getter_signature
-      * semicolon (*tok*)
-    )
-  | `Opt_meta_opt_exte_buil_setter_sign_semi of (
-        metadata option
-      * Token.t (* "external" *) option
-      * setter_signature
-      * semicolon (*tok*)
-    )
-  | `Opt_meta_getter_sign_func_body of (
-        metadata option
-      * getter_signature
-      * function_body
-    )
-  | `Opt_meta_setter_sign_func_body of (
-        metadata option
-      * setter_signature
-      * function_body
-    )
-  | `Opt_meta_func_sign_func_body of (
-        metadata option
-      * function_signature
-      * function_body
-    )
-  | `Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi of (
-        metadata option
-      * final_or_const
-      * type_ option
-      * static_final_declaration_list
-      * semicolon (*tok*)
-    )
-  | `Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi of (
-        metadata option
-      * Token.t (* "late" *)
-      * final_builtin (*tok*)
-      * type_ option
-      * initialized_identifier_list
-      * semicolon (*tok*)
-    )
-  | `Opt_meta_opt_late_buil_choice_type_init_id_list_semi of (
-        metadata option
-      * Token.t (* "late" *) option
-      * anon_choice_type_be0da33
-      * initialized_identifier_list
-      * semicolon (*tok*)
-    )
+    `Choice_class_defi of [
+        `Class_defi of class_definition
+      | `Mixin_decl of mixin_declaration
+      | `Exte_decl of extension_declaration
+      | `Enum_decl of enum_declaration
+      | `Type_alias of type_alias
+      | `Opt_meta_opt_exte_buil_func_sign_semi of (
+            metadata option
+          * Token.t (* "external" *) option
+          * function_signature
+          * semicolon (*tok*)
+        )
+      | `Opt_meta_opt_exte_buil_getter_sign_semi of (
+            metadata option
+          * Token.t (* "external" *) option
+          * getter_signature
+          * semicolon (*tok*)
+        )
+      | `Opt_meta_opt_exte_buil_setter_sign_semi of (
+            metadata option
+          * Token.t (* "external" *) option
+          * setter_signature
+          * semicolon (*tok*)
+        )
+      | `Opt_meta_getter_sign_func_body of (
+            metadata option
+          * getter_signature
+          * function_body
+        )
+      | `Opt_meta_setter_sign_func_body of (
+            metadata option
+          * setter_signature
+          * function_body
+        )
+      | `Opt_meta_func_sign_func_body of (
+            metadata option
+          * function_signature
+          * function_body
+        )
+      | `Opt_meta_choice_final_buil_opt_type_static_final_decl_list_semi of (
+            metadata option
+          * final_or_const
+          * type_ option
+          * static_final_declaration_list
+          * semicolon (*tok*)
+        )
+      | `Opt_meta_late_buil_final_buil_opt_type_init_id_list_semi of (
+            metadata option
+          * Token.t (* "late" *)
+          * final_builtin (*tok*)
+          * type_ option
+          * initialized_identifier_list
+          * semicolon (*tok*)
+        )
+      | `Opt_meta_opt_late_buil_choice_type_init_id_list_semi of (
+            metadata option
+          * Token.t (* "late" *) option
+          * anon_choice_type_be0da33
+          * initialized_identifier_list
+          * semicolon (*tok*)
+        )
+    ]
+  | `Semg_ellips of Token.t (* "..." *)
 ]
 
 type program = [
@@ -2511,17 +2516,6 @@ type library_export (* inlined *) = (
 )
 
 type library_import (* inlined *) = (metadata option * import_specification)
-
-type mixin_declaration (* inlined *) = (
-    metadata option
-  * Token.t (* "base" *) option
-  * Token.t (* "mixin" *)
-  * identifier (*tok*)
-  * type_parameters option
-  * (Token.t (* "on" *) * type_not_void_list) option
-  * interfaces option
-  * class_body
-)
 
 type declaration (* inlined *) = [
     `Import_spec of import_specification
