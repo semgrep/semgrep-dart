@@ -20,11 +20,16 @@ Last change in file:
 ---
 File: semgrep-grammars/src/semgrep-dart/grammar.js
 Git repo name: ocaml-tree-sitter-semgrep
-Latest commit in repo: 3207a600a125a2909932068f4ce16f47687c90c3
+Latest commit in repo: f52c69b03af3c045a573cf97f229edced0afc1a2
 Last change in file:
-  commit 3207a600a125a2909932068f4ce16f47687c90c3
-  Author: brandonspark <wu.brandonj@gmail.com>
-  Date:   Fri May 16 15:45:33 2025 -0700
+  commit 7709d5bc51acb965f3a2dd2b8fc60ffc8b6d9ac6
+  Author: Brandon Wu <49291449+brandonspark@users.noreply.github.com>
+  Date:   Wed Jun 11 09:38:47 2025 -0700
   
-      allow import ellipsis
+      fix(dart): update submodule (#536)
+      
+      ### Checklist
+      
+      - [ ] Any new parsing code was already published, integrated, and merged into Semgrep. DO NOT MERGE THIS PR BEFORE THE SEMGREP INTEGRATION WORK WAS COMPLETED.
+      - [x] Change has no security implications (otherwise, ping the security team)
 ---
