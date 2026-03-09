@@ -18,13 +18,13 @@ type mt = Run.matcher_token
 external create_parser :
   unit -> Tree_sitter_API.ts_parser = "octs_create_parser_dart"
 
-let parse_source_string ?src_file contents =
+let parse_source_string ?timeout_micros ?src_file contents =
   let ts_parser = create_parser () in
-  Tree_sitter_parsing.parse_source_string ?src_file ts_parser contents
+  Tree_sitter_parsing.parse_source_string ?timeout_micros ?src_file ts_parser contents
 
-let parse_source_file src_file =
+let parse_source_file ?timeout_micros src_file =
   let ts_parser = create_parser () in
-  Tree_sitter_parsing.parse_source_file ts_parser src_file
+  Tree_sitter_parsing.parse_source_file ?timeout_micros ts_parser src_file
 
 let extras = [
   "comment";
@@ -1443,7 +1443,7 @@ let children_regexps : (string * Run.exp option) list = [
       );
     ];
   );
-  "if_null_expression",
+  "if_null_expression_",
   Some (
     Seq [
       Token (Name "real_expression");
@@ -2115,7 +2115,7 @@ let children_regexps : (string * Run.exp option) list = [
     Alt [|
       Token (Name "conditional_expression");
       Token (Name "logical_or_expression");
-      Token (Name "if_null_expression");
+      Token (Name "if_null_expression_");
       Token (Name "additive_expression");
       Token (Name "multiplicative_expression");
       Token (Name "relational_expression");
@@ -7106,7 +7106,7 @@ and trans_if_element ((kind, body) : mt) : CST.if_element =
       )
   | Leaf _ -> assert false
 
-and trans_if_null_expression ((kind, body) : mt) : CST.if_null_expression =
+and trans_if_null_expression_ ((kind, body) : mt) : CST.if_null_expression_ =
   match body with
   | Children v ->
       (match v with
@@ -8479,8 +8479,8 @@ and trans_real_expression ((kind, body) : mt) : CST.real_expression =
             trans_logical_or_expression (Run.matcher_token v)
           )
       | Alt (2, v) ->
-          `If_null_exp (
-            trans_if_null_expression (Run.matcher_token v)
+          `If_null_exp_ (
+            trans_if_null_expression_ (Run.matcher_token v)
           )
       | Alt (3, v) ->
           `Addi_exp (
@@ -12251,11 +12251,11 @@ let parse_input_tree input_tree =
   in
   Parsing_result.create src opt_program extras errors
 
-let string ?src_file contents =
-  let input_tree = parse_source_string ?src_file contents in
+let string ?timeout_micros ?src_file contents =
+  let input_tree = parse_source_string ?timeout_micros ?src_file contents in
   parse_input_tree input_tree
 
-let file src_file =
-  let input_tree = parse_source_file src_file in
+let file ?timeout_micros src_file =
+  let input_tree = parse_source_file ?timeout_micros src_file in
   parse_input_tree input_tree
 

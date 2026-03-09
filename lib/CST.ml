@@ -741,7 +741,7 @@ and function_type_tails = function_type_tail list (* one or more *)
 
 and guarded_pattern = (pattern * (Token.t (* "when" *) * argument) option)
 
-and if_null_expression_ =
+and if_null_expression =
   (Token.t (* "??" *) * real_expression) list (* one or more *)
 
 and index_selector = (Token.t (* "[" *) * argument * Token.t (* "]" *))
@@ -1047,7 +1047,7 @@ and real_expression = [
         real_expression
       * (Token.t (* "||" *) * real_expression) list (* one or more *)
     )
-  | `If_null_exp of (real_expression * if_null_expression_)
+  | `If_null_exp_ of (real_expression * if_null_expression)
   | `Addi_exp of additive_expression
   | `Mult_exp of multiplicative_expression
   | `Rela_exp of relational_expression
@@ -2223,8 +2223,8 @@ type if_element (* inlined *) = (
   * (Token.t (* "else" *) * element) option
 )
 
-type if_null_expression (* inlined *) = (
-    real_expression * if_null_expression_
+type if_null_expression_ (* inlined *) = (
+    real_expression * if_null_expression
 )
 
 type if_statement (* inlined *) = (

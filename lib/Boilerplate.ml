@@ -1775,7 +1775,7 @@ and map_guarded_pattern (env : env) ((v1, v2) : CST.guarded_pattern) =
   in
   R.Tuple [v1; v2]
 
-and map_if_null_expression_ (env : env) (xs : CST.if_null_expression_) =
+and map_if_null_expression (env : env) (xs : CST.if_null_expression) =
   R.List (List.map (fun (v1, v2) ->
     let v1 = (* "??" *) token env v1 in
     let v2 = map_real_expression env v2 in
@@ -2565,9 +2565,9 @@ and map_real_expression (env : env) (x : CST.real_expression) =
       in
       R.Tuple [v1; v2]
     )
-  | `If_null_exp (v1, v2) -> R.Case ("If_null_exp",
+  | `If_null_exp_ (v1, v2) -> R.Case ("If_null_exp_",
       let v1 = map_real_expression env v1 in
-      let v2 = map_if_null_expression_ env v2 in
+      let v2 = map_if_null_expression env v2 in
       R.Tuple [v1; v2]
     )
   | `Addi_exp x -> R.Case ("Addi_exp",
