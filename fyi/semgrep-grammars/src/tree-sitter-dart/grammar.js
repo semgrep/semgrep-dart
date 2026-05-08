@@ -93,9 +93,21 @@ module.exports = grammar({
     ],
 
     conflicts: $ => [
+        // `@override (X, Y) foo() { ... }` — the parser needs to keep
+        // both stacks alive (annotation-with-args vs bare-annotation +
+        // record-return method) until it sees what comes after `)`.
+        [$.annotation, $._bare_annotation],
         [$._record_literal_no_const, $.record_field],
+        [$._record_literal_no_const, $.record_type],
+        [$._record_literal_no_const, $._strict_formal_parameter_list],
+        [$.getter_signature, $.function_signature, $._var_or_type],
+        [$.setter_signature, $.function_signature, $._var_or_type],
+        [$.operator_signature, $._var_or_type],
+        [$._primary, $._type_not_void_not_function, $._function_type_tail],
+        [$._primary, $._function_type_tail],
         [$.block, $.set_or_map_literal],
         [$._type_name, $._primary, $.function_signature],
+        [$._primary, $.function_signature],
         [$._primary, $._type_name],
         [$._primary, $._simple_formal_parameter],
         [$._primary, $._type_name, $._function_formal_parameter],
@@ -191,6 +203,7 @@ module.exports = grammar({
             $.class_definition,
             $.mixin_declaration,
             $.extension_declaration,
+            $.extension_type_declaration,
             $.enum_declaration,
             $.type_alias,
             seq(
@@ -226,6 +239,19 @@ module.exports = grammar({
                 $.function_signature,
                 $.function_body
             ),
+            // Top-level function with a record return type preceded by
+            // bare annotations. See `_record_return_class_member` for the
+            // rationale; this is the top-level analogue. Negative dynamic
+            // precedence so the standard annotation-with-args path wins
+            // when both are valid.
+            prec.dynamic(-10, seq(
+                repeat1(alias($._bare_annotation, $.annotation)),
+                alias(
+                    $._record_return_function_signature,
+                    $.function_signature
+                ),
+                $.function_body
+            )),
             //    final or const static final declaration list
             seq(
                 optional($._metadata),
@@ -250,6 +276,17 @@ module.exports = grammar({
                 optional($._late_builtin),
                 choice($._type, $.inferred_type),
                 $.initialized_identifier_list,
+                $._semicolon
+            ),
+            // Top-level external variable declaration (Dart 3 / static
+            // interop, e.g. `@JS() external _DdLogs? DD_LOGS;`).
+            seq(
+                optional($._metadata),
+                $._external_builtin,
+                choice(
+                    seq($.final_builtin, optional($._type), $.identifier_list),
+                    seq(optional($._late_builtin), $._var_or_type, $.identifier_list)
+                ),
                 $._semicolon
             )
         ),
@@ -281,8 +318,26 @@ module.exports = grammar({
         ),
 
         /****This is the symbol literals from section 16.8 (Page 99) of the dart specification****************/
-        symbol_literal: $ => seq('#', $.identifier),
-        //symbol literal can also be an operator?
+        // Dart symbols accept a dotted identifier list (e.g. `#foo.bar.baz`)
+        // or a single operator (e.g. `#+`, `#==`). See Dart language spec
+        // section 'Symbols'.
+        symbol_literal: $ => prec.right(seq(
+            '#',
+            choice(
+                sep1($.identifier, '.'),
+                $.equality_operator,
+                $.relational_operator,
+                $.shift_operator,
+                $.additive_operator,
+                $.multiplicative_operator,
+                '~',
+                '|',
+                '&',
+                '^',
+                '[]',
+                '[]=',
+            ),
+        )),
 
         /**************************************************************************************************
         *********************************Numeric Literals**************************************************
@@ -501,10 +556,14 @@ module.exports = grammar({
             '}'
         ),
 
+        // Per Dart 3 (null-aware elements), a map literal entry may use `?`
+        // before the key, the value, or both, e.g. `?key: value`,
+        // `key: ?value`, `?key: ?value`. Each `?` causes the entry to be
+        // omitted when the corresponding sub-expression is `null`.
         pair: $ => seq(
-            field('key', $._expression),
+            field('key', seq(optional('?'), $._expression)),
             ':',
-            field('value', $._expression)
+            field('value', seq(optional('?'), $._expression))
         ),
         // pair_or_element: $ => seq(
         //     field('key', $._expression),
@@ -517,7 +576,7 @@ module.exports = grammar({
         // ),
 
         _element: $ => choice(
-            $._expression,
+            seq(optional('?'), $._expression),
             $.pair,
             $.spread_element,
             $.if_element,
@@ -536,14 +595,28 @@ module.exports = grammar({
             $._record_literal_no_const,
         ),
 
-        _record_literal_no_const: $ => seq(
-            '(',
-            choice(
-                seq($.label, $._expression),
-                seq($._expression, ','),
-                commaSep2TrailingComma($.record_field),
+        // Per Dart spec (Records, recordLiteral): a record literal may be
+        // the empty record `()` (zero positional, zero named fields), a
+        // single-named-field record `(name: e)`, a single-positional record
+        // requiring a trailing comma `(e,)`, or two-or-more comma-separated
+        // record fields. Disambiguates against parenthesized_expression which
+        // matches `(e)` (no trailing comma, exactly one expression). The empty
+        // form gets a negative dynamic precedence so the parser prefers the
+        // existing `arguments`/type-arguments path (`f<T>()`) when ambiguous.
+        _record_literal_no_const: $ => choice(
+            prec.dynamic(-1, seq('(', ')')),
+            seq(
+                '(',
+                choice(
+                    // `(label: expr,)` — single named field with mandatory
+                    // trailing comma to disambiguate from a labeled paren-expr.
+                    seq($.label, $._expression, ','),
+                    seq($.label, $._expression),
+                    seq($._expression, ','),
+                    commaSep2TrailingComma($.record_field),
+                ),
+                ')'
             ),
-            ')'
         ),
 
         record_field: $ => seq(optional($.label), $._expression),
@@ -664,7 +737,14 @@ module.exports = grammar({
             seq($._primary, $._assignable_selector_part), // dart issue?
             seq($.super, $.unconditional_assignable_selector),
             seq($.constructor_invocation, $._assignable_selector_part),
-            $.identifier
+            // Per Dart spec, `get`, `set`, and `Function` are built-in
+            // identifiers and may appear on the left-hand side of an
+            // assignment when used as a field or local variable name
+            // (e.g. `set = expr;`).
+            $.identifier,
+            alias($._get, $.identifier),
+            alias($._set, $.identifier),
+            alias($._function_builtin_identifier, $.identifier),
         ),
         _assignable_selector_part: $ => seq(
             repeat($.selector),
@@ -1056,19 +1136,35 @@ module.exports = grammar({
                 $.identifier
             )
         ),
-        const_object_expression: $ => seq(
-            $.const_builtin,
-            $._type_not_void,
-            optional(
-                $._dot_identifier
+        const_object_expression: $ => choice(
+            seq(
+                $.const_builtin,
+                $._type_not_void,
+                optional(
+                    $._dot_identifier
+                ),
+                $.arguments
             ),
-            $.arguments
+            // Dart 3.10 allows `const` with a dot-shorthand constructor
+            // invocation: `const .new(...)` / `const .named(...)`. The
+            // receiver type is inferred from the context type.
+            seq(
+                $.const_builtin,
+                $.dot_shorthand,
+                $.arguments,
+            ),
         ),
 
 
         _primary: $ => choice(
             $._literal,
             $.identifier,
+            alias($._get, $.identifier),
+            alias($._set, $.identifier),
+            // Per Dart spec, `Function` is a built-in identifier and may
+            // appear as an ordinary identifier (e.g. `Function.apply(...)`,
+            // referring to the `Function` class).
+            alias($._function_builtin_identifier, $.identifier),
             $.function_expression,
             $.new_expression,
             $.const_object_expression,
@@ -1081,12 +1177,22 @@ module.exports = grammar({
             ),
             $.constructor_tearoff,
             $.switch_expression,
+            $.dot_shorthand,
             // $.object_creation_expression,
             // $.field_access,
             // $.array_access,
             // $.method_invocation,
             // $.method_reference,
         ),
+
+
+        // Dart 3.10 dot shorthands: .identifier or .new, optionally followed by
+        // type arguments and arguments. The context type provides the prefix.
+        // e.g. Color c = .red;  ButtonStyle s = .fromSeed(Colors.blue);
+        dot_shorthand: $ => prec.right(seq(
+            '.',
+            choice($.identifier, $._new_builtin),
+        )),
 
 
         parenthesized_expression: $ => seq('(', $._expression, ')'),
@@ -1099,7 +1205,7 @@ module.exports = grammar({
         )),
 
         constructor_tearoff: $ => prec.right(seq(
-          $._type_name, optional($.type_arguments), '.', $._new_builtin,
+            $._type_name, optional($.type_arguments), '.', $._new_builtin,
         )),
 
         arguments: $ => seq('(', optional($._argument_list), ')'),
@@ -1117,7 +1223,13 @@ module.exports = grammar({
             seq(
                 choice('..', '?..'),
                 $.cascade_selector,
-                repeat($.argument_part),
+                // After the selector, allow argument parts and `!` null
+                // assertions interleaved before the subsequent subsections
+                // begin (e.g. `.._parent!.onChildrenChanged(...)`).
+                repeat(choice(
+                    $.argument_part,
+                    $._exclamation_operator,
+                )),
                 repeat(
                     $._cascade_subsection
                 ),
@@ -1130,9 +1242,17 @@ module.exports = grammar({
         // prec.left(
         // DART_PREC.Cascade,
         // ),
+        // After the cascade selector, allow chained selectors (assignable
+        // selectors `.x` / `?.x` / `[i]`, the postfix `!` null assertion,
+        // and argument parts) — matches the general `selector` form used in
+        // non-cascade method chains. Without `!`, code like
+        // `obj.._parent!.onChildrenChanged(...)` fails to parse.
         _cascade_subsection: $ => seq(
             $._assignable_selector,
-            repeat($.argument_part)
+            repeat(choice(
+                $.argument_part,
+                $._exclamation_operator,
+            ))
         ),
         _cascade_assignment_section: $ => seq(
             $._assignment_operator,
@@ -1221,6 +1341,7 @@ module.exports = grammar({
             $.yield_statement,
             $.yield_each_statement,
             $.expression_statement,
+            $.empty_statement,
             $.assert_statement,
             // $.labeled_statement,
         ),
@@ -1238,6 +1359,10 @@ module.exports = grammar({
             $._expression,
             $._semicolon
         ),
+
+        // Per Dart spec, `;` alone is the empty (null) statement, e.g.
+        // `if (cond) ;` or as a no-op body.
+        empty_statement: $ => ';',
 
         labeled_statement: $ => seq(
             $.identifier, ':', $._statement
@@ -1273,10 +1398,10 @@ module.exports = grammar({
             'switch',
             field('condition', $.parenthesized_expression),
             field('body',
-             seq('{',
-               commaSep1TrailingComma($.switch_expression_case),
-            '}'
-            ))
+                seq('{',
+                    commaSep1TrailingComma($.switch_expression_case),
+                    '}'
+                ))
         ),
 
         switch_expression_case: $ => seq($._guarded_pattern, '=>', $._expression),
@@ -1292,11 +1417,11 @@ module.exports = grammar({
         _logical_or_pattern: $ => seq($._logical_and_pattern, repeat(seq($.logical_or_operator, $._logical_and_pattern))),
         _logical_and_pattern: $ => seq($._relational_pattern, repeat(seq($.logical_and_operator, $._relational_pattern))),
         _relational_pattern: $ =>
-        prec(DART_PREC.Relational, choice(
+            prec(DART_PREC.Relational, choice(
                 seq(choice($.relational_operator, $.equality_operator), $._real_expression),
                 $._unary_pattern,
             )
-        ),
+            ),
 
         _unary_pattern: $ => choice(
             $.cast_pattern,
@@ -1330,6 +1455,12 @@ module.exports = grammar({
             $.identifier,
             $.qualified,
             $.const_object_expression,
+            // Dart 3.10 dot-shorthand may appear as a constant pattern
+            // (e.g. `case .red:`, `case .new():`, `case .fromRGB(1,2,3):`).
+            // The context type of the matched value supplies the receiver
+            // type. The `const` form (`const .new(...)` / `const .named(...)`)
+            // is reached via `const_object_expression` above.
+            seq($.dot_shorthand, optional(seq(optional($.type_arguments), $.arguments))),
             seq($.const_builtin, optional($.type_arguments), '[', commaSep1TrailingComma($._element), ']'),
             seq($.const_builtin, optional($.type_arguments), '{', commaSep1TrailingComma($._element), '}'),
             seq($.const_builtin, '(', $._expression, ')'),
@@ -1353,7 +1484,7 @@ module.exports = grammar({
 
         _pattern_field: $ => seq(optional(seq(optional($.identifier), ':')), $._pattern),
 
-        object_pattern: $ => seq($._type_name, optional($.type_arguments), '(', commaSep1TrailingComma($._pattern_field), ')'),
+        object_pattern: $ => seq($._type_name, optional($.type_arguments), '(', commaSepTrailingComma($._pattern_field), ')'),
 
         pattern_variable_declaration: $ => seq(choice($.final_builtin, $.inferred_type), $._outer_pattern, '=', $._expression),
 
@@ -1363,12 +1494,12 @@ module.exports = grammar({
 
         switch_block: $ => seq(
             '{',
-                repeat($.switch_statement_case),
-                optional($.switch_statement_default),
+            repeat($.switch_statement_case),
+            optional($.switch_statement_default),
             '}'
         ),
 
-        switch_statement_case: $ =>  seq(
+        switch_statement_case: $ => seq(
             repeat($.label), $.case_builtin, $._guarded_pattern, ':', repeat($._statement),
         ),
 
@@ -1462,14 +1593,14 @@ module.exports = grammar({
 
         if_element: $ => prec.right(seq(
             'if',
-            '(', $._expression, optional(seq('case', $._guarded_pattern)) , ')',
+            '(', $._expression, optional(seq('case', $._guarded_pattern)), ')',
             field('consequence', $._element),
             optional(seq('else', field('alternative', $._element)))
         )),
 
         if_statement: $ => prec.right(seq(
             'if',
-            '(', $._expression, optional(seq('case', $._guarded_pattern)) , ')',
+            '(', $._expression, optional(seq('case', $._guarded_pattern)), ')',
             field('consequence', $._statement),
             optional(seq('else', field('alternative', $._statement)))
         )),
@@ -1508,7 +1639,7 @@ module.exports = grammar({
                     )
                 ),),
                 field('condition', optional($._expression)), $._semicolon,
-                commaSep(field('update', $._expression)),
+                commaSepTrailingComma(field('update', $._expression)),
             ),
             seq(
                 choice($.final_builtin, $.inferred_type),
@@ -1534,6 +1665,21 @@ module.exports = grammar({
                 optional(seq($.type_arguments, $.arguments)),
                 optional($.arguments)
             )
+        )),
+
+        // A "bare" annotation: just `@name` with no argument list. This is
+        // structurally a strict subset of `annotation` and is used to
+        // disambiguate `@override (X, Y) foo() { ... }` from
+        // `@override(X, Y)`. Aliased to `annotation` at the use site so the
+        // resulting AST is indistinguishable from a normal annotation.
+        // Negative dynamic precedence so the standard `annotation` rule
+        // (which can also produce `@name` with no args) wins ties — this
+        // matters for inputs like `@Foo() bar() {}` where both
+        // `@Foo()` (annotation with empty args) and `@Foo` (bare) +
+        // `()` (empty-record return type) are syntactically valid.
+        _bare_annotation: $ => prec.dynamic(-1, seq(
+            '@',
+            field('name', choice($.identifier, $.scoped_identifier))
         )),
 
         // Declarations
@@ -1650,10 +1796,13 @@ module.exports = grammar({
 
         enum_body: $ => seq(
             '{',
-              commaSep1TrailingComma($.enum_constant),
-              optional(
-                seq(';', repeat(seq(optional($._metadata), $._class_member_definition)))
-              ),
+            commaSep1TrailingComma($.enum_constant),
+            optional(
+                seq(';', repeat(choice(
+                    seq(optional($._metadata), $._class_member_definition),
+                    prec.dynamic(-10, $._record_return_class_member),
+                )))
+            ),
             '}'
         ),
 
@@ -1664,13 +1813,13 @@ module.exports = grammar({
                 optional($.argument_part),
             ),
             seq(
-            optional($._metadata),
-            field('name', $.identifier),
-            optional($.type_arguments),
-            '.',
-            choice($.identifier, $._new_builtin),
-            $.arguments,
-        )),
+                optional($._metadata),
+                field('name', $.identifier),
+                optional($.type_arguments),
+                '.',
+                choice($.identifier, $._new_builtin),
+                $.arguments,
+            )),
 
         type_alias: $ => choice(
             seq(
@@ -1720,6 +1869,27 @@ module.exports = grammar({
             ),
         ),
 
+        extension_type_declaration: $ => seq(
+            optional($._metadata),
+            'extension',
+            'type',
+            optional($.const_builtin),
+            field('name', $.identifier),
+            optional(field('type_parameters', $.type_parameters)),
+            field('representation', $.representation_declaration),
+            optional(field('interfaces', $.interfaces)),
+            field('body', $.class_body)
+        ),
+
+        representation_declaration: $ => seq(
+            optional(seq('.', choice($.identifier, $._new_builtin))),
+            '(',
+            optional($._metadata),
+            field('type', $._type),
+            field('name', $.identifier),
+            ')'
+        ),
+
         _metadata: $ => prec.right(repeat1($.annotation)),
 
 
@@ -1732,7 +1902,7 @@ module.exports = grammar({
             choice(alias(
                 $.identifier,
                 $.type_identifier),
-             $.nullable_type
+                $.nullable_type
             ),
             // This is a comment
             // comment with a link made in https://github.com/flutter/flutter/pull/48547
@@ -1799,12 +1969,89 @@ module.exports = grammar({
         class_body: $ => seq(
             '{',
             repeat(
-                seq(
-                    optional($._metadata),
-                    $._class_member_definition
+                choice(
+                    seq(
+                        optional($._metadata),
+                        $._class_member_definition
+                    ),
+                    // Methods whose return type is a record type, preceded by
+                    // bare annotations (no argument list). The standard arm
+                    // can't reach this case because `annotation`'s
+                    // `optional(arguments)` greedily eats the leading `(`,
+                    // which then mis-parses as the annotation's argument
+                    // list. The conflict between `annotation` and
+                    // `_bare_annotation` (declared at the top of this
+                    // grammar) lets GLR explore both stacks; the negative
+                    // dynamic precedence makes the standard path win when
+                    // both interpretations are valid (e.g. `@Foo() x() {}`
+                    // — empty annotation args + plain function — should
+                    // not be reinterpreted as bare-annotation + record
+                    // return; the standard `record_type` rule allows the
+                    // empty form so this can otherwise tie).
+                    prec.dynamic(-10, $._record_return_class_member),
                 )
             ),
             '}'
+        ),
+
+        _record_return_class_member: $ => seq(
+            repeat1(alias($._bare_annotation, $.annotation)),
+            // Hidden rule aliased to `method_signature` at this use site,
+            // so the AST is identical to a normal record-return method —
+            // downstream tools (highlight queries, OCaml mapper) don't
+            // need to learn a new node type.
+            alias(
+                $._record_return_method_signature,
+                $.method_signature
+            ),
+            $.function_body
+        ),
+
+        _record_return_method_signature: $ => seq(
+            optional($._static),
+            alias(
+                $._record_return_function_signature,
+                $.function_signature
+            ),
+        ),
+
+        // Same shape as `function_signature` but with the return type
+        // pinned to `record_type`. Note that the empty record form `()` is
+        // intentionally excluded here: `@Foo() bar() {}` is unambiguously
+        // an annotation with empty args followed by a function with no
+        // return type, not a bare annotation followed by an empty-record
+        // return. Aliased to `record_type` so the AST shape is the same.
+        _record_return_function_signature: $ => seq(
+            alias(
+                choice(
+                    seq(
+                        '(',
+                        commaSep1($.record_type_field),
+                        ',',
+                        '{',
+                        commaSep1TrailingComma($.record_type_named_field),
+                        '}',
+                        ')'
+                    ),
+                    seq(
+                        '(',
+                        commaSep1TrailingComma($.record_type_field),
+                        ')'
+                    ),
+                    seq(
+                        '(',
+                        '{',
+                        commaSep1TrailingComma($.record_type_named_field),
+                        '}',
+                        ')'
+                    ),
+                ),
+                $.record_type
+            ),
+            optional($.nullable_type),
+            field('name', $.identifier),
+            $._formal_parameter_part,
+            optional($._native),
         ),
         extension_body: $ => seq(
             '{',
@@ -1817,7 +2064,8 @@ module.exports = grammar({
                             $.method_signature,
                             $.function_body
                         ),
-                    )
+                    ),
+                    prec.dynamic(-10, $._record_return_class_member),
                 )
             ),
             '}'
@@ -1894,6 +2142,19 @@ module.exports = grammar({
             seq(
                 optional($._external_and_static),
                 $.function_signature,
+            ),
+            seq(
+                $._external_and_static,
+                $._type,
+                // Allow built-in identifiers (`get`, `set`, `operator`) as
+                // the declared name — used by `dart:ffi` Struct fields like
+                // `external SomeType get;` (`colibri_stateless` etc.).
+                choice(
+                    $.identifier,
+                    alias($._get, $.identifier),
+                    alias($._set, $.identifier),
+                    alias($._operator, $.identifier),
+                )
             ),
             // TODO: This should only work with native?
             seq(
@@ -1978,6 +2239,33 @@ module.exports = grammar({
                 optional($._late_builtin),
                 $._var_or_type,
                 $.initialized_identifier_list
+            ),
+            // External instance fields (Dart 3 / static interop): per the
+            // language spec a class member may be declared with the
+            // `external` modifier together with `final`/`covariant`. The
+            // unmodified `external <type> <id>` form is already handled by
+            // the `_external_and_static + _type + identifier` rule above.
+            seq(
+                $._external,
+                choice(
+                    seq($.final_builtin, optional($._type), $.identifier_list),
+                    seq($._covariant, $._var_or_type, $.identifier_list)
+                )
+            ),
+            // Abstract instance fields (Dart 3): per the language spec, an
+            // instance field in an abstract class may be declared without an
+            // initializer, with the modifier `abstract`. The field has no
+            // implementation; subclasses must provide a concrete
+            // getter/setter. Supports `abstract final <type>? <ids>`,
+            // `abstract covariant <type>? <ids>`, and the bare
+            // `abstract <type> <ids>` form.
+            seq(
+                $.abstract,
+                choice(
+                    seq($.final_builtin, optional($._type), $.identifier_list),
+                    seq($._covariant, $._var_or_type, $.identifier_list),
+                    seq($._var_or_type, $.identifier_list)
+                )
             )
             //    TODO: add in the 'late' keyword from the informal draft spec:
             //    |static late final〈type〉?〈initializedIdentifierList〉
@@ -1993,8 +2281,18 @@ module.exports = grammar({
         initialized_identifier_list: $ => commaSep1(
             $.initialized_identifier
         ),
+        // Per Dart spec, `get`, `set`, and `operator` are built-in
+        // identifiers and may be used as ordinary identifiers (e.g. as a
+        // field name or local variable). The `_declared_identifier` rule
+        // aliases the same set; mirror that here so `int set = 0;`,
+        // `var get = ...;`, and `String operator;` parse.
         initialized_identifier: $ => seq(
-            $.identifier,
+            choice(
+                $.identifier,
+                alias($._get, $.identifier),
+                alias($._set, $.identifier),
+                alias($._operator, $.identifier),
+            ),
             optional(seq(
                 '=',
                 $._expression
@@ -2053,7 +2351,7 @@ module.exports = grammar({
         initializer_list_entry: $ => choice(
             seq($.super, $.arguments),
             seq($.super,
-              seq('.', choice($.identifier, $._new_builtin), $.arguments),
+                seq('.', choice($.identifier, $._new_builtin), $.arguments),
             ),
             $.field_initializer,
             $.assertion
@@ -2063,11 +2361,10 @@ module.exports = grammar({
             optional(seq($.this, '.')),
             $.identifier,
             '=',
-            // $.conditional_expression,
-            $._real_expression,
-            repeat(
-                $.cascade_section
-            )
+            // Per Dart spec the field initializer's right-hand side is a
+            // full expression (including compound assignments like `??=`),
+            // not just a conditional expression.
+            $._expression
         ),
 
         // constructor_signature: $ => seq(
@@ -2180,7 +2477,12 @@ module.exports = grammar({
             optional($._metadata),
             optional($._covariant),
             $._final_const_var_or_type,
-            field('name', $.identifier)
+            field('name', choice(
+                $.identifier,
+                alias($._get, $.identifier),
+                alias($._set, $.identifier),
+                alias($._operator, $.identifier),
+            ))
         ),
 
         // Types
@@ -2302,10 +2604,16 @@ module.exports = grammar({
         ),
 
         record_type: $ => choice(
-            seq('(', ')'),
-            seq('(', commaSep1($.record_type_field), ',', '{' , commaSep1TrailingComma($.record_type_named_field), '}', ')'),
+            // The empty record type `()` gets a strongly negative dynamic
+            // precedence so e.g. `@Foo() bar() {}` keeps parsing as
+            // (annotation with empty args) + (plain function). Without
+            // this, the bare-annotation/record-return path added below
+            // can win the GLR fork because `()` is also a valid empty
+            // record_type as the return type.
+            prec.dynamic(-20, seq('(', ')')),
+            seq('(', commaSep1($.record_type_field), ',', '{', commaSep1TrailingComma($.record_type_named_field), '}', ')'),
             seq('(', commaSep1TrailingComma($.record_type_field), ')'),
-            seq('(','{', commaSep1TrailingComma($.record_type_named_field), '}', ')'),
+            seq('(', '{', commaSep1TrailingComma($.record_type_named_field), '}', ')'),
         ),
 
         record_type_field: $ => seq(
@@ -2587,7 +2895,11 @@ module.exports = grammar({
                 optional(
                     $._covariant
                 ),
-                $.identifier
+                choice(
+                    $.identifier,
+                    alias($._get, $.identifier),
+                    alias($._set, $.identifier),
+                )
             )
         ),
 
@@ -2624,13 +2936,15 @@ module.exports = grammar({
 
         script_tag: $ => seq('#!', /.+/, '\n'),
 
-        library_name: $ => seq(optional($._metadata), 'library', $.dotted_identifier_list, $._semicolon),
+        // Dart 2.19+ allows the unnamed library directive `library;` to
+        // attach a doc comment / annotation to a library file without a name.
+        library_name: $ => seq(optional($._metadata), 'library', optional($.dotted_identifier_list), $._semicolon),
 
         dotted_identifier_list: $ => sep1($.identifier, '.'),
 
         _identifier_or_new: $ => choice($.identifier, $._new_builtin),
 
-        qualified: $ =>choice(
+        qualified: $ => choice(
             seq($._type_name, '.', $._identifier_or_new),
             seq($._type_name, '.', $._type_name, '.', $._identifier_or_new),
         ),
@@ -2799,7 +3113,17 @@ module.exports = grammar({
             'super',
         ),
 
-        label: $ => seq($.identifier, ':'),
+        // Per Dart spec, built-in identifiers may appear as labels
+        // (e.g. as the key of a named argument: `f(get: x, set: y)`).
+        label: $ => seq(
+            choice(
+                $.identifier,
+                alias($._get, $.identifier),
+                alias($._set, $.identifier),
+                alias($._function_builtin_identifier, $.identifier),
+            ),
+            ':'
+        ),
 
         _semicolon: $ => token(';'),
 
@@ -2861,8 +3185,8 @@ function commaSepTrailingComma(rule) {
     return optional(commaSep1TrailingComma(rule))
 }
 
-function pureBinaryRun(rule, separator, precedence){
-   return prec.left(
+function pureBinaryRun(rule, separator, precedence) {
+    return prec.left(
         precedence,
         choice(
             sep2(
